@@ -1,0 +1,13 @@
+# Ignore real/private data
+Data/
+*.xlsx
+*.xls
+
+# Ignore RStudio session files
+.Rhistory
+.RData
+.Ruserdata/
+
+# Ignore Quarto/R generated extras
+*_files/
+*.html

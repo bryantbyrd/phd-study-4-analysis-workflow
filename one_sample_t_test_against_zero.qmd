@@ -1,0 +1,76 @@
+---
+title: "One Sample T-Test Against Zero"
+author: "Bryant Byrd"
+format: html
+editor: visual
+---
+
+## Study 4 Thesis 
+
+\# Purpose\
+This analysis tests whether the mean percent difference between IPC and Sham performance is significantly different from zero.\
+A percent difference of zero would mean there was no average difference between IPC and Sham.\
+A negative value means IPC was faster than Sham.\
+A positive value means IPC was slower than Sham.
+
+```{r}
+# Load packages
+
+library(tidyverse)
+
+library(readxl)
+
+performance_outcome <- read_excel("data/performance_outcome.xlsx")
+
+# Clean the data
+
+matched_long <- performance_outcome %>%
+  rename(
+    pair_id = ID,
+    race = Race,
+    trial = Trial,
+    finish_time_excel = `Finsished Time`,
+    finish_sec = Finished_Sec,
+    pct_diff_excel = `%diff`,
+    place = Place
+  ) %>%
+  filter(!is.na(pair_id), trial %in% c("IPC", "Sham"))
+```
+
+```{r}
+# Convert to one row per matched pair
+
+matched_wide <- matched_long %>%
+  select(pair_id, race, trial, finish_sec, place) %>%
+  pivot_wider(
+    names_from = trial,
+    values_from = c(race, finish_sec, place),
+    names_sep = "_"
+  ) %>%
+  mutate(
+    pct_diff_decimal = (finish_sec_IPC - finish_sec_Sham) / finish_sec_Sham,
+    pct_diff_percent = pct_diff_decimal * 100
+  )
+
+matched_wide
+```
+
+```{r}
+# One-sample t-test against zero
+
+t_test_result <- t.test(
+  matched_wide$pct_diff_percent,
+  mu = 0
+)
+
+t_test_result
+```
+
+\# Interpretation\
+The one-sample t-test was used to determine whether the average percent difference between IPC and Sham was significantly different from zero.\
+\
+If the p-value is less than 0.05, the mean percent difference is statistically significantly different from zero.\
+\
+If the mean percent difference is negative, IPC was faster than Sham on average.\
+\
+If the mean percent difference is positive, IPC was slower than Sham on average.
