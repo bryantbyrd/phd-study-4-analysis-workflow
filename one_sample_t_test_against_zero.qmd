@@ -5,6 +5,8 @@ format: html
 editor: visual
 ---
 
+# The original research data are not included in this repository. This document is intended to demonstrate the statistical workflow and code organization used for the analysis.
+
 ## Study 4 Thesis 
 
 \# Purpose\
