@@ -1,0 +1,669 @@
+---
+title: "Biomarker Linear Mixed Model Analysis"
+author: Bryant Byrd
+format: html
+editor: visual
+---
+
+# Biomarker Linear Mixed Model 
+
+```{r package}
+library(tidyverse)
+library(readxl)
+library(nlme)
+library(emmeans)
+library(performance)
+library(see)
+library(ggplot2)
+library(patchwork)
+library(scales)
+```
+
+# Import Data File
+
+```{r-import-data-file}
+df <- read_excel(
+  "Data/Biomarkers.xlsx",
+  sheet = "Sheet1",
+  na = c("", "NA", "#DIV/0!")
+)
+names(df) <- trimws(names(df))
+```
+
+# CRP Linear Mixed Model
+
+## CRP Cleaning
+
+```{r-crp-cleaning}
+df_CRP <- df %>%
+  mutate(
+    Status = trimws(as.character(Status)),
+    ID = factor(ID),
+    Timepoint = factor(trimws(Timepoint),
+                       levels = c("Before", "Immediate")),
+    Trial = factor(Group, levels = c("SHAM", "IPC")),
+    CRP = as.numeric(CRP),
+    Vert_Gain = as.numeric(Vert_Gain),
+    Average_Elevation = as.numeric(Average_Elevation),
+    AQ = as.numeric(AQ)
+  ) %>%
+  filter(
+    is.na(Status) | Status != "Dropped",
+    !is.na(CRP),
+    CRP > 0,
+    !is.na(Vert_Gain),
+    !is.na(Average_Elevation),
+    !is.na(AQ)
+  ) %>%
+  droplevels()
+```
+
+## CRP Model
+
+```{r-crp-model}
+model_CRP<- lme(
+  fixed = log(CRP) ~ Timepoint * Trial +
+    Vert_Gain +
+    Average_Elevation +
+    AQ,
+  random = ~ 1 | ID,
+  data = df_CRP,
+  na.action = na.omit
+)
+
+summary(model_CRP)
+anova(model_CRP)
+```
+
+## Moderation analysis using a linear mixed-effects model
+
+```{r-moderation-analysis-vert-int }
+model_CRP_vert_int <- lme(
+  fixed = log(CRP) ~ Timepoint * Vert_Gain + Trial + Average_Elevation + AQ,
+  random = ~ 1 | ID,
+  data = df_CRP,
+  method = "REML",
+  na.action = na.omit
+)
+
+anova(model_CRP_vert_int)
+```
+
+```{r-moderation-analysis-elev-int}
+model_CRP_elev_int <- lme(
+  fixed = log(CRP) ~ Timepoint * Average_Elevation + Trial + Vert_Gain + AQ,
+  random = ~ 1 | ID,
+  data = df_CRP,
+  method = "REML",
+  na.action = na.omit
+)
+
+anova(model_CRP_elev_int)
+```
+
+## CRP Diagnostics
+
+```{r-crp-diagnostics}
+check_model(model_CRP)
+check_collinearity(model_CRP)
+
+resid_CRP <- residuals(model_CRP, type = "normalized")
+
+hist(resid_CRP,
+     main = "Histogram of normalized residuals",
+     xlab = "Normalized residuals")
+
+qqnorm(resid_CRP)
+qqline(resid_CRP)
+
+shapiro.test(resid_CRP)
+```
+
+## CRP Emmeans
+
+```{r-crp-emmeans}
+emm_CRP <- emmeans(model_CRP, ~ Timepoint * Trial)
+
+emm_CRP
+pairs(emm_CRP)
+
+# Before vs Immediate within each trial
+pairs(emm_CRP, by = "Trial")
+
+# IPC vs SHAM at each timepoint
+pairs(emm_CRP, by = "Timepoint")
+
+emmeans(model_CRP, ~ Timepoint * Trial, type = "response")
+```
+
+## Effect Size
+
+```{r-effect-size}
+emm_CRP_trial <- emmeans(
+  model_CRP,
+  ~ Trial | Timepoint
+)
+
+eff_size(
+  emm_CRP_trial,
+  sigma = as.numeric(sigma(model_CRP)),
+  edf = Inf
+)
+```
+
+# IL-6 Linear Mixed Model
+
+## IL-6 Cleaning
+
+```{r-iL-6_cleaning}
+df_il6 <- df %>%
+  mutate(
+    Status = trimws(as.character(Status)),
+    ID = factor(ID),
+    Timepoint = factor(trimws(Timepoint),
+                       levels = c("Before", "Immediate")),
+    Trial = factor(Group, levels = c("SHAM", "IPC")),
+    IL_6 = as.numeric(IL_6),
+    Vert_Gain = as.numeric(Vert_Gain),
+    Average_Elevation = as.numeric(Average_Elevation),
+    AQ = as.numeric(AQ)
+  ) %>%
+  filter(
+    is.na(Status) | Status != "Dropped",
+    !is.na(IL_6),
+    IL_6 > 0,
+    !is.na(Vert_Gain),
+    !is.na(Average_Elevation),
+    !is.na(AQ)
+  ) %>%
+  droplevels()
+```
+
+## IL-6 Model
+
+```{r-il-6-model}
+model_il6<- lme(
+  fixed = log(IL_6) ~ Timepoint * Trial +
+    Vert_Gain +
+    Average_Elevation +
+    AQ,
+  random = ~ 1 | ID,
+  data = df_il6,
+  na.action = na.omit
+)
+
+summary(model_il6)
+anova(model_il6)
+```
+
+## IL-6 Diagnostics 
+
+```{r-il-6-diagnostics}
+check_model(model_il6)
+check_collinearity(model_il6)
+
+resid_il6 <- residuals(model_il6, type = "normalized")
+
+hist(resid_il6,
+     main = "Histogram of normalized residuals",
+     xlab = "Normalized residuals")
+
+qqnorm(resid_il6)
+qqline(resid_il6)
+
+shapiro.test(resid_il6)
+```
+
+## IL-6 Emmeans
+
+```{r-il-6-emmeans}
+emm_il6 <- emmeans(model_il6, ~ Timepoint * Trial)
+
+emm_il6
+pairs(emm_il6)
+
+# Before vs Immediate within each trial
+pairs(emm_il6, by = "Trial")
+
+# IPC vs SHAM at each timepoint
+pairs(emm_il6, by = "Timepoint")
+
+emmeans(model_il6, ~ Timepoint * Trial, type = "response")
+```
+
+# IL-10 Linear Mixed Model
+
+## IL-10 Cleaning
+
+```{r-il-10-cleaning}
+df_il10 <- df %>%
+  mutate(
+    Status = trimws(as.character(Status)),
+    ID = factor(ID),
+    Timepoint = factor(trimws(Timepoint),
+                       levels = c("Before", "Immediate")),
+    Trial = factor(Group, levels = c("SHAM", "IPC")),
+    IL10 = as.numeric(IL_10),
+    Vert_Gain = as.numeric(Vert_Gain),
+    Average_Elevation = as.numeric(Average_Elevation),
+    AQ = as.numeric(AQ)
+  ) %>%
+  filter(
+    is.na(Status) | Status != "Dropped",
+    !is.na(IL10),
+    IL10 > 0,
+    !is.na(Vert_Gain),
+    !is.na(Average_Elevation),
+    !is.na(AQ)
+  ) %>%
+  droplevels()
+```
+
+## IL-10 Model
+
+```{r-il-10-model}
+model_il10<- lme(
+  fixed = log(IL10) ~ Timepoint * Trial +
+    Vert_Gain +
+    Average_Elevation +
+    AQ,
+  random = ~ 1 | ID,
+  data = df_il10,
+  na.action = na.omit
+)
+
+summary(model_il10)
+anova(model_il10)
+```
+
+## IL-10 Diagnostics
+
+```{r-il-10-diagnostics}
+check_model(model_il10)
+check_collinearity(model_il10)
+
+resid_il10 <- residuals(model_il10, type = "normalized")
+
+hist(resid_il10,
+     main = "Histogram of normalized residuals",
+     xlab = "Normalized residuals")
+
+qqnorm(resid_il10)
+qqline(resid_il10)
+
+shapiro.test(resid_il10)
+
+df_il10_diag <- df_il10 %>%
+  mutate(
+    resid_il10 = residuals(model_il10, type = "normalized"),
+    fitted_il10 = fitted(model_il10)
+  ) %>%
+  arrange(desc(abs(resid_il10)))
+
+df_il10_diag %>%
+  select(ID, Timepoint, Trial, IL10, resid_il10, fitted_il10, Vert_Gain, Average_Elevation, AQ)
+
+```
+
+## IL-10 Emmeans
+
+```{r-il-10-emmeans}
+emm_il10 <- emmeans(model_il10, ~ Timepoint * Trial)
+
+emm_il10
+pairs(emm_il10)
+
+# Before vs Immediate within each trial
+pairs(emm_il10, by = "Trial")
+
+# IPC vs SHAM at each timepoint
+pairs(emm_il10, by = "Timepoint")
+
+emmeans(model_il10, ~ Timepoint * Trial, type = "response")
+```
+
+# TNF-alpha
+
+## TNF-alpha cleaning
+
+```{r-tnf-alpha-cleaning}
+df <- df %>%
+  mutate(
+    TNF_alpha_clean = as.numeric(TNF_α)
+  )
+
+df_tnf <- df %>%
+  mutate(
+    Status = trimws(as.character(Status)),
+    ID = factor(ID),
+    Timepoint = factor(trimws(Timepoint),
+                       levels = c("Before", "Immediate")),
+    Trial = factor(Group, levels = c("SHAM", "IPC")),
+    TNF = as.numeric(TNF_alpha_clean),
+    Vert_Gain = as.numeric(Vert_Gain),
+    Average_Elevation = as.numeric(Average_Elevation),
+    AQ = as.numeric(AQ)
+  ) %>%
+  filter(
+    is.na(Status) | Status != "Dropped",
+    !is.na(TNF),
+    TNF > 0,
+    !is.na(Vert_Gain),
+    !is.na(Average_Elevation),
+    !is.na(AQ)
+  ) %>%
+  droplevels()
+```
+
+## TNF-alpha model
+
+```{r-tnf-alpha-model}
+model_tnf <- lme(
+  fixed = log(TNF) ~ Timepoint * Trial +
+    Vert_Gain +
+    Average_Elevation +
+    AQ,
+  random = ~ 1 | ID,
+  data = df_tnf,
+  method = "REML",
+  na.action = na.omit
+)
+
+summary(model_tnf)
+anova(model_tnf)
+```
+
+## TNF-alpha Diagnostics
+
+```{r-tnf-alpha-diagnostics}
+check_model(model_tnf)
+check_collinearity(model_tnf)
+
+resid_tnf <- residuals(model_tnf, type = "normalized")
+
+hist(resid_tnf,
+     main = "Histogram of normalized residuals",
+     xlab = "Normalized residuals")
+
+qqnorm(resid_tnf)
+qqline(resid_tnf)
+
+shapiro.test(resid_tnf)
+
+```
+
+## TNF-alpha Emmeans
+
+```{r-tnf-alpha-emmeans}
+emm_tnf <- emmeans(model_tnf, ~ Timepoint * Trial)
+
+emm_tnf
+pairs(emm_tnf)
+
+# Before vs Immediate within each trial
+pairs(emm_tnf, by = "Trial")
+
+# IPC vs SHAM at each timepoint
+pairs(emm_tnf, by = "Timepoint")
+
+emmeans(model_tnf, ~ Timepoint * Trial, type = "response")
+```
+
+# TAC
+
+## TAC cleaning
+
+```{r-tac-cleaning}
+df_tac <- df %>%
+  mutate(
+    Status = trimws(as.character(Status)),
+    ID = factor(ID),
+    Timepoint = factor(trimws(Timepoint),
+                       levels = c("Before", "Immediate")),
+    Trial = factor(Group, levels = c("SHAM", "IPC")),
+    tac = as.numeric(TAC),
+    Vert_Gain = as.numeric(Vert_Gain),
+    Average_Elevation = as.numeric(Average_Elevation),
+    AQ = as.numeric(AQ)
+  ) %>%
+  filter(
+    is.na(Status) | Status != "Dropped",
+    !is.na(tac),
+    tac > 0,
+    !is.na(Vert_Gain),
+    !is.na(Average_Elevation),
+    !is.na(AQ)
+  ) %>%
+  droplevels()
+```
+
+## TAC Model
+
+```{r-tac-model}
+model_tac <- lme(
+  fixed = log(tac) ~ Timepoint * Trial +
+    Vert_Gain +
+    Average_Elevation +
+    AQ,
+  random = ~ 1 | ID,
+  data = df_tac,
+  method = "REML",
+  na.action = na.omit
+)
+
+summary(model_tac)
+anova(model_tac)
+```
+
+## TAC Diagnostics
+
+```{r-tac-diagnostics}
+check_model(model_tac)
+check_collinearity(model_tac)
+
+resid_tac <- residuals(model_tac, type = "normalized")
+
+hist(resid_tac,
+     main = "Histogram of normalized residuals",
+     xlab = "Normalized residuals")
+
+qqnorm(resid_tac)
+qqline(resid_tac)
+
+shapiro.test(resid_tac)
+```
+
+## TAC Emmeans
+
+```{r-tac-emmeans}
+emm_tac <- emmeans(model_tac, ~ Timepoint * Trial)
+
+emm_tac
+pairs(emm_tac)
+
+# Before vs Immediate within each trial
+pairs(emm_tac, by = "Trial")
+
+# IPC vs SHAM at each timepoint
+pairs(emm_tac, by = "Timepoint")
+
+emmeans(model_tac, ~ Timepoint * Trial, type = "response")
+```
+
+# Graphs: Whisker Plot
+
+## Load the clean data
+
+```{r-load-the-clean-data}
+df_clean <- df %>%
+  mutate(
+    Status = trimws(as.character(Status)),
+    ID = factor(ID),
+    Timepoint = factor(trimws(Timepoint),
+                       levels = c("Before", "Immediate")),
+    Trial = factor(Group, levels = c("SHAM", "IPC")),
+    IL_6 = as.numeric(IL_6),
+    IL_10 = as.numeric(IL_10),
+    TNF_alpha = as.numeric(TNF_alpha_clean),
+    CRP = as.numeric(CRP) / 1000000,   # convert pg/mL to mg/L
+    TAC = as.numeric(TAC)
+  ) %>%
+  filter(
+    is.na(Status) | Status != "Dropped"
+  )
+```
+
+## Convert biomarkers to long format
+
+```{r-convert-biomarkers-to-long-format}
+bio_long <- df_clean %>%
+  select(ID, Timepoint, Trial, IL_6, IL_10, TNF_alpha, CRP, TAC) %>%
+  pivot_longer(
+    cols = c(IL_6, IL_10, TNF_alpha, CRP, TAC),
+    names_to = "Biomarker",
+    values_to = "Value"
+  ) %>%
+  filter(
+    !is.na(Value),
+    Value > 0
+  )
+```
+
+## Create a function for each panel
+
+```{r-create-a-function-for-each-panel}
+make_panel <- function(data, biomarker_name, panel_label, y_label) {
+  
+  ggplot(
+    data %>% filter(Biomarker == biomarker_name),
+    aes(x = Timepoint, y = Value, fill = Trial)
+  ) +
+    geom_boxplot(
+      position = position_dodge(width = 0.55),
+      width = 0.45,
+      outlier.shape = NA,
+      color = "black",
+      coef = 0
+    ) +
+    geom_point(
+      aes(shape = Trial),
+      position = position_jitterdodge(
+        jitter.width = 0.08,
+        dodge.width = 0.55
+      ),
+      size = 2,
+      color = "black"
+    ) +
+    stat_summary(
+      aes(group = Trial),
+      fun = mean,
+      geom = "line",
+      position = position_dodge(width = 0.55),
+      color = "black",
+      linewidth = 0.6
+    ) +
+    stat_summary(
+      aes(group = Trial),
+      fun = mean,
+      geom = "point",
+      position = position_dodge(width = 0.55),
+      color = "black",
+      size = 2
+    ) +
+    scale_y_log10(
+      breaks = scales::breaks_log(n = 5),
+      labels = scales::label_number()
+    ) +
+    scale_fill_manual(values = c("SHAM" = "white", "IPC" = "gray40")) +
+    scale_shape_manual(values = c("SHAM" = 17, "IPC" = 17)) +
+    labs(
+      x = NULL,
+      y = y_label,
+      tag = panel_label
+    ) +
+    theme_classic(base_size = 13) +
+    theme(
+      legend.position = "top",
+      legend.title = element_blank(),
+      plot.tag = element_text(face = "bold"),
+      axis.title.y = element_text(size = 13),
+      axis.text = element_text(color = "black"),
+      panel.grid.major = element_line(color = "gray90"),
+      panel.grid.minor = element_blank()
+    )
+}
+```
+
+## Make each panel
+
+```{r-make-each-panel}
+p_il6 <- make_panel(
+  bio_long,
+  biomarker_name = "IL_6",
+  panel_label = "A",
+  y_label = "IL-6 (pg/mL)"
+)
+
+p_il10 <- make_panel(
+  bio_long,
+  biomarker_name = "IL_10",
+  panel_label = "B",
+  y_label = "IL-10 (pg/mL)"
+)
+
+p_tnf <- make_panel(
+  bio_long,
+  biomarker_name = "TNF_alpha",
+  panel_label = "C",
+  y_label = expression("TNF-"*alpha*" (pg/mL)")
+)
+
+p_crp <- make_panel(
+  bio_long,
+  biomarker_name = "CRP",
+  panel_label = "D",
+  y_label = "CRP (mg/L)"
+)
+
+p_tac <- make_panel(
+  bio_long,
+  biomarker_name = "TAC",
+  panel_label = "E",
+  y_label = "TAC (U/mL)"
+)
+```
+
+## Combine panels like your figure
+
+```{r-vombine-panels-like-your-figure}
+figure_biomarkers <- 
+  (p_il6 | p_il10) /
+  (p_tnf | p_crp) /
+  (p_tac | plot_spacer())
+
+figure_biomarkers
+```
+
+## Save the figure
+
+```{r-save-the-figure}
+
+dir.create("outputs/figures", recursive = TRUE, showWarnings = FALSE)
+
+ggsave(
+  filename = "outputs/figures/Figure_Biomarkers.png",
+  plot = figure_biomarkers,
+  width = 10,
+  height = 8,
+  dpi = 600
+)
+
+ggsave(
+  filename = "outputs/figures/Figure_Biomarkers.tiff",
+  plot = figure_biomarkers,
+  width = 10,
+  height = 8,
+  dpi = 600,
+  compression = "lzw"
+)
+```
