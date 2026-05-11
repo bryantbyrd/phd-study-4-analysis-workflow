@@ -1,0 +1,86 @@
+---
+title: "lmm with body fat set as a factor for CRP"
+author: Bryant Byrd
+format: html
+editor: visual
+---
+
+## Package to Install
+
+```{r}
+install.packages("car")
+
+library(readxl)
+library(dplyr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(car)
+library(nlme)
+```
+
+# Import Data
+
+```{r}
+bf <- read_excel("Body Fat.xlsx")
+bio <- read_excel("Biomarkers.xlsx")
+```
+
+## Clean Body Fat Data
+
+```{r}
+Clean_bf <- bf %>%
+  rename(
+    ID = 'Code Name post',
+    Body_Fat = `Body Fat`
+  ) %>% 
+  mutate(ID=as.character(ID))
+  
+Clean_bf
+```
+
+## Clean Biomarkers Data
+
+```{r}
+Clean_bio <- bio %>% 
+  mutate(
+    ID = as.character(ID),
+    Group = factor(Group),
+    Timepoint = factor(Timepoint, levels = c("Before","Immediate"))
+  ) %>% 
+  left_join(Clean_bf, by = "ID")
+```
+
+## Check and see if the table looks good
+
+```{r}
+Clean_bio
+```
+
+## Get rid of the N/A and add a column for log CRP values
+
+```{r}
+CRP_Data <- Clean_bio %>% 
+  filter(!is.na(CRP),!is.na(Body_Fat),!is.na(Timepoint),!is.na(Group)) %>% 
+  mutate(
+    log_CRP = log(CRP)
+  )
+```
+
+## LMM analysis for CRP with body fat set as a covariate 
+
+```{r}
+CRP_LMM <- lme(
+  fixed = log_CRP ~ Timepoint*Group + Body_Fat,
+  random = ~1|ID,
+  data = CRP_Data,
+  method = "REML"
+)
+```
+
+## Results
+
+```{r}
+summary(CRP_LMM)
+anova(CRP_LMM)
+```
